@@ -16,15 +16,13 @@ export class CanvasArea {
     constructor(container, opts = {}) {
         this._canvas = this._createCanvas(container, opts)
         this._context =  this._canvas.getContext(contextId);
-        this._padding = opts.padding || 40
-        this._initAngles()
     }
 
     _iterator(){
         return areasLength ++
     }
 
-    _createCanvas (container, { width=400, height=400 }){
+    _createCanvas (container, { width=400, height=400, padding = 40 }){
         const canv = document.createElement('canvas');
         canv.id = `chart_area_${areasLength}`;
         canv.width = width
@@ -33,14 +31,18 @@ export class CanvasArea {
         this._height = height
         container.insertAdjacentElement('afterBegin', canv)
         canv.style.backgroundColor="white"
+        this._iterator()
+
+        this._initAngles(padding)
+
         return canv
     }
 
-    _initAngles(){
-        let paddingTopLeftX = this._padding,
-            paddingTopLeftY = this._padding,
-            paddingBottomRightX = this._padding,
-            paddingBottomRightY = this._padding
+    _initAngles(padding){
+        let paddingTopLeftX = padding,
+            paddingTopLeftY = padding,
+            paddingBottomRightX = padding,
+            paddingBottomRightY = padding
         this.angles = {
             topLeft: [paddingTopLeftX, paddingTopLeftY],
             bottomRight: [ this._width - paddingBottomRightX , this._height - paddingBottomRightY]
