@@ -60,7 +60,7 @@ export class OverflowPopup extends Appear {
             const parseIntTop = parseInt(this._element.style.top)
             funcRescale({
                 topLeft: [parseIntLeft, parseIntTop],
-                bottomRight: [parseInt(this._element.style.width) + parseIntLeft, parseInt(this._element.style.top) + parseIntTop]
+                bottomRight: [parseInt(this._element.style.width) + parseIntLeft, parseInt(this._element.style.height) + parseIntTop]
             })
         }
         this._element.style.width = '0px'
