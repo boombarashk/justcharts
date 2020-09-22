@@ -33,6 +33,7 @@ export class Graph {
 
     drawPoints() {
         this._ctx.fillStyle = this.color
+        this._ctx.strokeStyle = this.color
 
         this._sortPointsOnView.forEach( point => {
             const [x, y] = point
@@ -55,7 +56,7 @@ export class Graph {
         ])
     }
 
-    set sortPointsOnView( {getCoord, steps} ) {
-        this._sortPointsOnView = this.sortPoints.map(point => getCoord(point, steps))
+    set sortPointsOnView( {getCoord} ) {
+        this._sortPointsOnView = this.sortPoints.map(point => getCoord(point))
     }
 }

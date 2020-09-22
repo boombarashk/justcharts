@@ -1,9 +1,10 @@
-const HIDDENCLASSNAME = 'infoPopup--hidden'
+import { Appear } from "./appear";
 
-export class Popup{
+export class Popup extends Appear{
     constructor(container){
-        this._init(container)
+        super(container)
 
+        this._init()
         this._content = (data) => {
             if (!data.points) return ''
 
@@ -16,23 +17,13 @@ export class Popup{
         }
     }
 
-    _init(container){
-        const popup = document.createElement('div')
-        popup.className = `infoPopup ${HIDDENCLASSNAME}`
-        container.insertAdjacentElement('afterBegin', popup)
-
-        this._element = popup
+    _init(){
+        this._element.classList.add('infoPopup')
     }
 
     show(position, data){
-        const {top, left} = position
-        this._element.style.top = `${ top }px`
-        this._element.style.left = `${ left }px`
         this._element.innerHTML = this._content(data)
-        this._element.classList.remove(HIDDENCLASSNAME)
-    }
 
-    hide(){
-        this._element.classList.add(HIDDENCLASSNAME)
+        super.show(position)
     }
 }

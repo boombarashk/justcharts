@@ -2,53 +2,56 @@ import { CanvasArea } from "./canvasarea";
 import { Axe } from "./axe"
 import { Graph } from "./graph";
 import { Popup } from "./popup";
+import { OverflowPopup } from "./overflowpopup";
 
 const COLORS = ['#397dcc', 'orangered']
 
 export class Chart{
     constructor(container, opts){
         this.data = opts.data
-        this.originGraphs = [] // fixme save scale1 data
+        this.originGraphs = []
         this._ctx = opts.canvas || null
 
         this._init(container)
         this._drawAxis({ ...opts })
 
-        this._scale = 1
+        this._scale = false
         this._lineWeight = 1
         this._pointR = 4 // radius of circle point
         this._pointD = this._pointR * 2
         this._padding = 40
-        this._mathPoints()
-        this.drawLegend()
-        this.drawGraph()
+        this.render()
 
-        this.watchMouseEvent(container)
+
+        this.watchMouseEvent(container.firstElementChild)
+        this.reScale = this.reScale.bind(this)
     }
 
     _init(container){
-        if (!this._ctx) {
-            const area = new CanvasArea(container, {padding: this._padding})
-            this._ctx = area.ctx
-            this._area = area
-            this._chartArea = area.chartArea
-            this._angles = area.angles
-        } // else this._area
+        const innerContainer = document.createElement('div')
+        container.insertAdjacentElement('afterBegin', innerContainer)
 
-        this._popup = new Popup(container)
+        const area = new CanvasArea(innerContainer, {padding: this._padding})
+        this._ctx = area.ctx
+        this._area = area
+        this._chartArea = area.chartArea
+        this._angles = area.angles
+
+        const sizes = area.sizes
+        innerContainer.style.width = `${ sizes.width }px`
+        innerContainer.style.height = `${ sizes.height }px`
+
+        this._popup = new Popup(innerContainer)
+        this._overflow = new OverflowPopup(innerContainer)
     }
 
     watchMouseEvent(container){
-        const containerPosition = container.getBoundingClientRect()
+        const containerPosition = container.getBoundingClientRect() //may be this._containerPosition if resize window
         const shiftX = containerPosition.left
         const shiftY = containerPosition.top
-        container.onmousemove = (ev) => {
-            const angles = this._angles
-            if (ev.clientX > (angles.topLeft[0] + shiftX) &&
-                ev.clientX < (angles.bottomRight[0] + shiftX) &&
-                ev.clientY > (angles.topLeft[1] + shiftY) &&
-                ev.clientY < (angles.bottomRight[1] + shiftY))
-            {
+
+        container.addEventListener('mousemove', (ev) => {
+            if (this.checkEventOnView(ev, {shiftX, shiftY})) {
                 const checkResult = this.checkCursorOnPoint({
                     x: ev.clientX - shiftX,
                     y: ev.clientY - shiftY,
@@ -59,8 +62,8 @@ export class Chart{
                     const labelsPoint = checkResult.index.map( i => {
                         return graph.getPointByIndex(i)
                     })
-
-                    this._popup.show({top: ev.clientY, left: ev.clientX}, {
+                    const gap = 10
+                    this._popup.show({top: ev.clientY - shiftY + gap, left: ev.clientX - shiftX + gap}, {
                         points:labelsPoint,
                         label: graph.label,
                         color: graph.color,
@@ -70,11 +73,32 @@ export class Chart{
                     this._popup.hide()
                 }
             }
-        }
+        })
 
         container.onmouseleave = () => {
             this._popup.hide()
         }
+
+        container.onmousedown = (ev) => {
+            if (this.checkEventOnView(ev, {shiftX, shiftY})) {
+                this._overflow.show({top: ev.clientY, left: ev.clientX},
+                    {shiftX, shiftY},
+                    this._area.sizes )
+            }
+        }
+        container.onmouseup = () => {
+            this._overflow.hide(this.reScale)
+        }
+    }
+
+    checkEventOnView({clientX, clientY}, {shiftX, shiftY}){
+        const angles = this._angles
+        return (
+            clientX > (angles.topLeft[0] + shiftX) &&
+            clientX < (angles.bottomRight[0] + shiftX) &&
+            clientY > (angles.topLeft[1] + shiftY) &&
+            clientY < (angles.bottomRight[1] + shiftY)
+        )
     }
 
     checkCursorOnPoint( relatedCoords ) {
@@ -97,6 +121,53 @@ export class Chart{
         return indexes.indexGraph.length > 0
             ? indexes
             : null
+    }
+
+    render() {
+        this._area.clearChartArea()
+
+        this._mathPoints()
+        this.drawLegend()
+        this.drawGraph()
+    }
+    // NB записать в this.data оригинальные значения при reset scale
+    reScale(angles){
+        this._scale = true
+
+        new Promise( (resolve) => {
+            resolve(this._prepareData( this._getBoundariesForPoints(angles)))
+        }).then( (data) => {
+            this.data = data
+            this.render()
+        })
+    }
+    /**координаты отсечения по осям, revert getCoords:
+     * */
+    _getBoundariesForPoints(angles){
+        const shiftX = this._angles.topLeft[0] + this._pointR + this._lineWeight
+        const shiftY = this._angles.topLeft[1] + this._pointR + this._lineWeight
+        return {
+            minX: ((angles.topLeft[0] > this._angles.topLeft[0] ? angles.topLeft[0] :  this._angles.topLeft[0]) - shiftX) / this._steps.stepX,
+            minY: ((angles.topLeft[1] > this._angles.topLeft[1] ? angles.topLeft[1] :  this._angles.topLeft[1]) - shiftY) / this._steps.stepY,
+            maxX: ((angles.bottomRight[0] < this._angles.bottomRight[0] ? angles.bottomRight[0] : this._angles.bottomRight[0]) - shiftX) / this._steps.stepX,
+            maxY: ((angles.bottomRight[1] < this._angles.bottomRight[1] ? angles.bottomRight[1] : this._angles.bottomRight[1]) - shiftY) / this._steps.stepY
+        }
+    }
+
+    _prepareData(boundaries){
+        return this.graphs.map( graph => {
+            const { minX, maxY } = this._anglesCoords
+            const {sortPoints, label, color} = graph.graph
+            return { label, color, points: sortPoints.filter(point => {
+                return (
+                    point[0] > boundaries.minX + minX &&
+                    point[0] < boundaries.maxX + minX &&
+                    point[1] < maxY - boundaries.minY &&
+                    point[1] > maxY - boundaries.maxY
+                )
+            })
+            }
+        }).filter(item => item.points.length)
     }
 
     _drawAxis({ axis = ['', ''] }) {
@@ -123,12 +194,15 @@ export class Chart{
 
     drawGraph(){
         this.graphs.forEach(item => {
-            item.graph.drawLine()
+            if (this._scale) {
+                // todo отрезки не сплошная..
+            } else {
+                item.graph.drawLine()
+            }
             item.graph.drawPoints()
         })
     }
 
-// todo argument data on scale
     _mathPoints(){
         let minX, maxX, minY, maxY
 
@@ -161,14 +235,14 @@ export class Chart{
 
         this._setAnglesCoords(minX, minY, maxX, maxY)
 
-        const steps = this._getStepOnAxis()
+        this._getStepOnAxis()
 
         this.setSortedPointsOnView = this.graphs.map(item => {
-            item.graph.sortPointsOnView = {getCoord: this._getCoord.bind(this), steps}
+            item.graph.sortPointsOnView = {getCoord: this._getCoord.bind(this)/*, steps: this._steps*/}
             return item.graph.sortPointsOnView
         })
-// fixme math first only
-        if (this._scale === 1) {
+
+        if (this._scale === false) {
             this.originGraphs = [...this.graphs]
         }
     }
@@ -182,12 +256,12 @@ export class Chart{
         }
     }
 
-    _getCoord([x, y], {stepX, stepY}) {
+    _getCoord([x, y]) {
+        const {stepX, stepY} = this._steps
         const lineW = this._lineWeight
         const { minX, maxY } = this._anglesCoords
-
         return [
-            this._angles.topLeft[0] + Math.floor((minX + x) * stepX) + this._pointR + lineW,
+            this._angles.topLeft[0] + Math.floor((x - minX) * stepX) + this._pointR + lineW,
             this._angles.topLeft[1] + Math.floor((maxY - y)* stepY) + this._pointR + lineW
         ]
     }
@@ -198,7 +272,7 @@ export class Chart{
 
     _getStepOnAxis() {
         const {minX, minY, maxX, maxY} = this._anglesCoords
-        return {
+        this._steps = {
             stepX: (this._chartArea.width - this._pointD - this._lineWeight) / ( maxX - minX) ,
             stepY: (this._chartArea.height - this._pointD - this._lineWeight) / (maxY - minY)
         }
@@ -206,10 +280,5 @@ export class Chart{
 
     _chartColor(index) {
         return COLORS[index % COLORS.length]
-
-    }
-
-    clearChartArea(){
-        this._area.clearChartArea()
     }
 }
