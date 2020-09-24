@@ -3,27 +3,28 @@ import { Axe } from "./axe"
 import { Graph } from "./graph";
 import { Popup } from "./popup";
 import { OverflowPopup } from "./overflowpopup";
+import { ResetScale, RESETBTNNAME } from "./resetscale";
+import {Legend} from "./legend";
 
-const COLORS = ['#397dcc', 'orangered']
+const COLORS = ['#397dcc', 'orangered', '#ac54cc', '#00cc3b', 'black', 'yellow' , '#A30E00', '#67cc95']
 
 export class Chart{
     constructor(container, opts){
         this.data = opts.data
-        this.originGraphs = []
         this._ctx = opts.canvas || null
-
-        this._init(container)
-        this._drawAxis({ ...opts })
-
         this._scale = false
         this._lineWeight = 1
-        this._pointR = 4 // radius of circle point
+        this._pointR = 3 // radius of circle point
         this._pointD = this._pointR * 2
         this._padding = 40
+
+        this._init(container)
+        this._drawAxis(opts)
+
         this.render()
 
+        this.watchEvents(container.firstElementChild)
 
-        this.watchMouseEvent(container.firstElementChild)
         this.reScale = this.reScale.bind(this)
     }
 
@@ -41,34 +42,62 @@ export class Chart{
         innerContainer.style.width = `${ sizes.width }px`
         innerContainer.style.height = `${ sizes.height }px`
 
+        this._legend = new Legend(innerContainer, {
+            position: {
+                left: area.angles.topLeft[0],
+                top: area.angles.bottomRight[1]
+            }
+        })
         this._popup = new Popup(innerContainer)
         this._overflow = new OverflowPopup(innerContainer)
+        this._resetScale = new ResetScale(innerContainer, {
+            top: this._padding + 10,
+            right: this._padding + 10,
+            handlerClick: () => {
+                this._scale = false
+                this._area.clearChartArea()
+                this.render()
+            }
+        })
     }
 
-    watchMouseEvent(container){
-        const containerPosition = container.getBoundingClientRect() //may be this._containerPosition if resize window
-        const shiftX = containerPosition.left
-        const shiftY = containerPosition.top
+    _getContainerPosition(container) {
+        const containerPosition = container.getBoundingClientRect()
+        return {
+            shiftX: containerPosition.left,
+            shiftY: containerPosition.top,
+        }
+    }
+
+    watchEvents(container){
+        let {shiftX, shiftY} = this._getContainerPosition(container)
+
+        window.addEventListener('resize', () => {
+            const position = this._getContainerPosition(container)
+            shiftX = position.shiftX
+            shiftY = position.shiftY
+        })
 
         container.addEventListener('mousemove', (ev) => {
-            if (this.checkEventOnView(ev, {shiftX, shiftY})) {
+            if (this._scale === false && this.checkEventOnView(ev, {shiftX, shiftY})) {
                 const checkResult = this.checkCursorOnPoint({
                     x: ev.clientX - shiftX,
                     y: ev.clientY - shiftY,
                 })
                 if  (checkResult) {
-                    // there may be a loop over indexGraph
-                    const graph = this.graphs[ checkResult.indexGraph[0] ].graph
-                    const labelsPoint = checkResult.index.map( i => {
-                        return graph.getPointByIndex(i)
+                    const labelsData = checkResult.index.map( (value, i) => {
+                        const graph = this.graphs[ checkResult.indexGraph[i] ].graph
+                        return {
+                            label: graph.label,
+                            color: graph.color,
+                            points: graph.getPointByIndex(value)
+                        }
                     })
                     const gap = 10
-                    this._popup.show({top: ev.clientY - shiftY + gap, left: ev.clientX - shiftX + gap}, {
-                        points:labelsPoint,
-                        label: graph.label,
-                        color: graph.color,
-                    })
-
+                    this._popup.show(
+                        {top: ev.clientY - shiftY + gap, left: ev.clientX - shiftX + gap},
+                        labelsData
+                    )
                 } else {
                     this._popup.hide()
                 }
@@ -79,15 +108,27 @@ export class Chart{
             this._popup.hide()
         }
 
+        const checkTargetNoResetBtn = target => target.dataset.name !== RESETBTNNAME
+
         container.onmousedown = (ev) => {
-            if (this.checkEventOnView(ev, {shiftX, shiftY})) {
-                this._overflow.show({top: ev.clientY, left: ev.clientX},
-                    {shiftX, shiftY},
-                    this._area.sizes )
-            }
+            ev.preventDefault()
+            const starttimestamp= Date.now()
+            //const timeout = 500
+            //setTimeout(() => {
+                if (checkTargetNoResetBtn(ev.target)) {
+                    if (this.checkEventOnView(ev, {shiftX, shiftY})) {
+                        this._overflow.show({top: ev.clientY, left: ev.clientX},
+                            {shiftX, shiftY},
+                            this._area.sizes)
+                    }
+                }
+            //}, timeout)
         }
-        container.onmouseup = () => {
-            this._overflow.hide(this.reScale)
+        container.onmouseup = (ev) => {
+            if (checkTargetNoResetBtn(ev.target)) {
+                this._timestamp = Date.now()
+                this._overflow.hide(this.reScale)
+            }
         }
     }
 
@@ -124,50 +165,59 @@ export class Chart{
     }
 
     render() {
-        this._area.clearChartArea()
-
         this._mathPoints()
         this.drawLegend()
         this.drawGraph()
     }
-    // NB записать в this.data оригинальные значения при reset scale
+
     reScale(angles){
         this._scale = true
+        this._resetScale.show()
 
-        new Promise( (resolve) => {
-            resolve(this._prepareData( this._getBoundariesForPoints(angles)))
-        }).then( (data) => {
-            this.data = data
-            this.render()
-        })
-    }
-    /**координаты отсечения по осям, revert getCoords:
-     * */
-    _getBoundariesForPoints(angles){
-        const shiftX = this._angles.topLeft[0] + this._pointR + this._lineWeight
-        const shiftY = this._angles.topLeft[1] + this._pointR + this._lineWeight
-        return {
-            minX: ((angles.topLeft[0] > this._angles.topLeft[0] ? angles.topLeft[0] :  this._angles.topLeft[0]) - shiftX) / this._steps.stepX,
-            minY: ((angles.topLeft[1] > this._angles.topLeft[1] ? angles.topLeft[1] :  this._angles.topLeft[1]) - shiftY) / this._steps.stepY,
-            maxX: ((angles.bottomRight[0] < this._angles.bottomRight[0] ? angles.bottomRight[0] : this._angles.bottomRight[0]) - shiftX) / this._steps.stepX,
-            maxY: ((angles.bottomRight[1] < this._angles.bottomRight[1] ? angles.bottomRight[1] : this._angles.bottomRight[1]) - shiftY) / this._steps.stepY
+        let cropX0 = angles.topLeft[0]
+        if (cropX0 <= this._angles.topLeft[0]) {
+            cropX0 += this._angles.topLeft[0] + 1 // line width
         }
+        const cropY0 = angles.topLeft[1]
+        let cropWidth = angles.bottomRight[0]
+        if (cropWidth + cropX0 > this._angles.bottomRight[0]) {
+            cropWidth -= cropWidth + cropX0 - this._angles.bottomRight[0]
+        }
+        let cropHeight = angles.bottomRight[1]
+        if (cropHeight + cropY0 >= this._angles.bottomRight[1]) {
+            cropHeight -= cropHeight + cropY0 - this._angles.bottomRight[1] + 1 // line width
+        }
+
+        this._legend.content(this._getPointsOnScaleView(angles))
+
+        // buffer - temp canvas for copy
+        const {width, height} = this._chartArea
+        const buffer = new CanvasArea(document.getElementById('root'), {
+            width,
+            height,
+            padding: 0,
+            position: 'beforeEnd'
+        })
+        buffer.ctx.drawImage(this._area.canvas ,
+            cropX0,
+            cropY0,
+            cropWidth,
+            cropHeight,
+            0, 0, width, height
+        )
+        this._area.clearChartArea()
+        this._ctx.drawImage(buffer.canvas, this._angles.topLeft[0],this._angles.topLeft[1], width, height)
+        buffer.destroy()
     }
 
-    _prepareData(boundaries){
-        return this.graphs.map( graph => {
-            const { minX, maxY } = this._anglesCoords
-            const {sortPoints, label, color} = graph.graph
-            return { label, color, points: sortPoints.filter(point => {
-                return (
-                    point[0] > boundaries.minX + minX &&
-                    point[0] < boundaries.maxX + minX &&
-                    point[1] < maxY - boundaries.minY &&
-                    point[1] > maxY - boundaries.maxY
-                )
-            })
+    _getPointsOnScaleView(angles) {
+        const data = this.graphs.map( item => {
+            const {label, color} = item.graph
+            return {
+                label, color, points: item.graph.getPointsOnScaleView(angles)
             }
-        }).filter(item => item.points.length)
+        }).filter( graph => graph.points.length > 0 )
+        return data
     }
 
     _drawAxis({ axis = ['', ''] }) {
@@ -186,28 +236,30 @@ export class Chart{
         })
         axeX.drawAxe()
         axeY.drawAxe()
+        this._axis = {axeX, axeY}
     }
 
-    drawLegend(){
-        // 1.а наименование параметра
+    drawLegend(data = this.graphs){
+        this._legend.content(
+            data.map(item => {
+                const {label, color} = item.graph
+                return {label, color}
+            })
+        )
     }
 
     drawGraph(){
         this.graphs.forEach(item => {
-            if (this._scale) {
-                // todo отрезки не сплошная..
-            } else {
-                item.graph.drawLine()
-            }
+            item.graph.drawLine()
             item.graph.drawPoints()
         })
     }
 
-    _mathPoints(){
+    _mathPoints(data = this.data, boundaries){
         let minX, maxX, minY, maxY
 
         this.graphs = []
-        this.data.forEach( (data, index) => {
+        data.forEach( (data, index) => {
 
 // todo try catch
             const color = data.color || this._chartColor(index)
@@ -233,27 +285,16 @@ export class Chart{
             this.graphs.push( {graph} )
         })
 
-        this._setAnglesCoords(minX, minY, maxX, maxY)
+        this._anglesCoords = { minX, maxX, minY, maxY }
 
         this._getStepOnAxis()
 
         this.setSortedPointsOnView = this.graphs.map(item => {
-            item.graph.sortPointsOnView = {getCoord: this._getCoord.bind(this)/*, steps: this._steps*/}
+            item.graph.sortPointsOnView = {getCoord: this._getCoord.bind(this)}
             return item.graph.sortPointsOnView
         })
 
-        if (this._scale === false) {
-            this.originGraphs = [...this.graphs]
-        }
-    }
-
-    _setAnglesCoords(minX, minY, maxX, maxY) {
-        this._anglesCoords = {
-            minX,
-            maxX,
-            minY,
-            maxY,
-        }
+        //this.originGraphs = [...this.graphs]
     }
 
     _getCoord([x, y]) {

@@ -22,14 +22,14 @@ export class CanvasArea {
         return areasLength ++
     }
 
-    _createCanvas (container, { width=400, height=400, padding = 40 }){
+    _createCanvas (container, { width=400, height=400, padding = 40, insertPosition = 'afterBegin' }){
         const canv = document.createElement('canvas');
         canv.id = `chart_area_${areasLength}`;
         canv.width = width
         this._width = width
         canv.height = height
         this._height = height
-        container.insertAdjacentElement('afterBegin', canv)
+        container.insertAdjacentElement(insertPosition, canv)
         canv.style.backgroundColor="white"
         this._iterator()
 
@@ -47,6 +47,10 @@ export class CanvasArea {
             topLeft: [paddingTopLeftX, paddingTopLeftY],
             bottomRight: [ this._width - paddingBottomRightX , this._height - paddingBottomRightY]
         }
+    }
+
+    get canvas() {
+        return this._canvas
     }
 
     get ctx () {
@@ -74,5 +78,9 @@ export class CanvasArea {
             this.chartArea.width,   // width
             this.chartArea.height,  // height
             )
+    }
+
+    destroy() {
+        this._canvas.remove()
     }
 }

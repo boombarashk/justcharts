@@ -22,6 +22,7 @@ export class OverflowPopup extends Appear {
         this._container.removeEventListener('mousemove', this._handlerMouseMove)
     }
     _handlerMouseMove(ev) {
+        ev.preventDefault()
         const rightBottomAngle = {
             x: ev.clientX - this._shift.shiftX,
             y: ev.clientY - this._shift.shiftY
@@ -60,7 +61,7 @@ export class OverflowPopup extends Appear {
             const parseIntTop = parseInt(this._element.style.top)
             funcRescale({
                 topLeft: [parseIntLeft, parseIntTop],
-                bottomRight: [parseInt(this._element.style.width) + parseIntLeft, parseInt(this._element.style.height) + parseIntTop]
+                bottomRight: [parseInt(this._element.style.width), parseInt(this._element.style.height) ]
             })
         }
         this._element.style.width = '0px'

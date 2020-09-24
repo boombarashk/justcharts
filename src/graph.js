@@ -44,6 +44,18 @@ export class Graph {
         })
     }
 
+    getPointsOnScaleView(angles) {
+        return this.sortPoints.filter( (nomean, index) => {
+            const point = this._sortPointsOnView[index]
+            return (
+            point[0] >= angles.topLeft[0] &&
+            point[0] <= angles.topLeft[0] + angles.bottomRight[0] &&
+            point[1] >= angles.topLeft[1] &&
+            point[1] <= angles.topLeft[1] + angles.bottomRight[1]
+            )
+        })
+    }
+
     getPointByIndex(index){
         return this.sortPoints[index]
     }

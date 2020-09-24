@@ -6,14 +6,15 @@ export class Popup extends Appear{
 
         this._init()
         this._content = (data) => {
-            if (!data.points) return ''
+            if (data.length === 0) return ''
 
-            const coord = data.points.map( coord => coord.join(', ')).join('<br/>')
-            const styleColor = data.color ? ` style="color: ${data.color}"` : ''
-            return `
-                <div class="infoPopup-label" ${styleColor}>${data.label}</div>
-                <div class="infoPopup-text">${coord}</div>
-            `
+            return data.map(item => {
+                const styleColor = item.color ? ` style="color: ${item.color}"` : ''
+                const coord = item.points.join(', ')
+                return `
+                    <div class="infoPopup-label" ${styleColor}>${item.label}</div>
+                    <div class="infoPopup-text">${coord}</div>
+            `}).join('')
         }
     }
 
