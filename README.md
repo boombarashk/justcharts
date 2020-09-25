@@ -1,2 +1,2 @@
 # justcharts
-Draw charts
+Draw charts https://boombarashk.github.io/justcharts/

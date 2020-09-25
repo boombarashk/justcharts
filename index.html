@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Chart Page Test</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="/justcharts/public/favicon.ico">
+    <script type="module" src="/justcharts/public/bundle.js"></script>
+    <style>header { color: white; background-color: #091720; min-height: 80px;}
+    html, body {padding:0; margin:0}
+    body {background-color: white}
+    #root { text-align: center}
+    #root > div {position: relative;margin: 0 auto}
+    .appear {position: absolute; }
+    .appear--hidden {display: none}
+    .overflowPopup { background-color: #20d699; opacity:.5 }
+    .infoPopup {box-shadow: 0 0 8px rgba(0,0,0,0.3); min-height: 32px; min-width: 64px; padding: 8px; background-color: lavender; border-radius: 4px; z-index: 1;}
+    .infoPopup-label {font-size: .9em}
+    .infoPopup-text {text-align: center}
+    .button {box-sizing: border-box; display: inline-block;cursor:pointer; padding: 6px 15px; text-align: center; text-transform: uppercase; font-size: .75em; color: #fff; border: none;border-radius: 2px; background-color: #61affe;}
+    .button--indented {min-width: 118px; margin: 0 1em}
+    .button-remove { position: absolute; background-color: #a51723; font-size: 2em; left: 80px; }
+        .resetScale {cursor:pointer}
+        .resetScale-button {position:relative; }
+    .legend {padding: 1.5em 0;}
+    .legend-item {display: flex; align-items: center;}
+    .legend-item-line {width: 32px; height: 0; margin-right: 1em; border-style: solid; border-width: 1px}
+    .option-form {padding: 1.5em 0}
+     .option-field {padding:0 1em 0.5em calc(110px + 2em); display: flex;}
+    .option-field-input {margin-left:1em; flex-grow: 1}
+    </style>
+</head>
+<body>
+    <header>
+        <form class="option-form" name="options"></form>
+    </header>
+    <div id="root"></div>
+</body>
+</html>
