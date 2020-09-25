@@ -18,21 +18,23 @@ export class Chart{
         this._pointD = this._pointR * 2
         this._padding = 40
 
-        this._init(container)
+        this._init(container, opts)
+
         this._drawAxis(opts)
 
         this.render()
 
-        this.watchEvents(container.firstElementChild)
+        this.watchEvents()
 
         this.reScale = this.reScale.bind(this)
     }
 
-    _init(container){
+    _init(container, {width, height}){
+        container.innerHTML = ''
         const innerContainer = document.createElement('div')
         container.insertAdjacentElement('afterBegin', innerContainer)
 
-        const area = new CanvasArea(innerContainer, {padding: this._padding})
+        const area = new CanvasArea(innerContainer, {width, height, padding: this._padding})
         this._ctx = area.ctx
         this._area = area
         this._chartArea = area.chartArea
@@ -59,6 +61,7 @@ export class Chart{
                 this.render()
             }
         })
+        this._container = innerContainer
     }
 
     _getContainerPosition(container) {
@@ -69,16 +72,11 @@ export class Chart{
         }
     }
 
-    watchEvents(container){
-        let {shiftX, shiftY} = this._getContainerPosition(container)
-
-        window.addEventListener('resize', () => {
-            const position = this._getContainerPosition(container)
-            shiftX = position.shiftX
-            shiftY = position.shiftY
-        })
+    watchEvents(){
+        const container = this._container
 
         container.addEventListener('mousemove', (ev) => {
+            let {shiftX, shiftY} = this._getContainerPosition(container)
             if (this._scale === false && this.checkEventOnView(ev, {shiftX, shiftY})) {
                 const checkResult = this.checkCursorOnPoint({
                     x: ev.clientX - shiftX,
@@ -111,24 +109,34 @@ export class Chart{
         const checkTargetNoResetBtn = target => target.dataset.name !== RESETBTNNAME
 
         container.onmousedown = (ev) => {
+            let {shiftX, shiftY} = this._getContainerPosition(container)
             ev.preventDefault()
-            const starttimestamp= Date.now()
-            //const timeout = 500
-            //setTimeout(() => {
-                if (checkTargetNoResetBtn(ev.target)) {
+            if (!this._timestamp) this._timestamp= Date.now()
+            this._timestampUp = null
+            if (!this._mousedownCoords) {
+                this._mousedownCoords = { clientX: ev.clientX, clientY: ev.clientY}
+            }
+            setTimeout(() => {
+                if (this._timestampUp === null && checkTargetNoResetBtn(ev.target)) {
                     if (this.checkEventOnView(ev, {shiftX, shiftY})) {
                         this._overflow.show({top: ev.clientY, left: ev.clientX},
                             {shiftX, shiftY},
                             this._area.sizes)
                     }
                 }
-            //}, timeout)
+            }, 200)
         }
         container.onmouseup = (ev) => {
-            if (checkTargetNoResetBtn(ev.target)) {
-                this._timestamp = Date.now()
+            this._timestampUp = Date.now()
+            if (this._timestamp !== null && (this._timestampUp - this._timestamp) > 500 &&
+                Math.abs(ev.clientY - this._mousedownCoords.clientY) > 0 &&
+                Math.abs(ev.clientX - this._mousedownCoords.clientX) > 0 &&
+                checkTargetNoResetBtn(ev.target))
+            {
+                this._mousedownCoords = null
                 this._overflow.hide(this.reScale)
             }
+            this._timestamp=null
         }
     }
 
@@ -231,7 +239,7 @@ export class Chart{
         });
         const axeY = new Axe({name: nameAxeY, color: axeColor, coords: [
             [this._angles.topLeft[0], this._angles.topLeft[1]],
-            [this._angles.topLeft[0], this._angles.bottomRight[0]],
+            [this._angles.topLeft[0], this._angles.bottomRight[1]],
             ], ctx: this._ctx
         })
         axeX.drawAxe()
@@ -260,29 +268,37 @@ export class Chart{
 
         this.graphs = []
         data.forEach( (data, index) => {
+          if (data) {
+              const color = data.color || this._chartColor(index)
 
-// todo try catch
-            const color = data.color || this._chartColor(index)
+              let points = this._checkCoords(data.points[0])
+                  ? data.points
+                  : data.points.map((value, index) => [index, value])
+              const graph = new Graph({
+                  label: data.label,
+                  points,
+                  color,
+                  ctx: this._ctx,
+                  pointRadius: this._pointR,
+                  lineWeight: this._lineWeight
+              })
+              graph.mathPointsOneGraph()
 
-            let points = this._checkCoords(data.points[0])
-                ? data.points
-                : data.points.map( (value, index) => [index, value] )
-            const graph = new Graph({
-                label: data.label,
-                points,
-                color,
-                ctx: this._ctx,
-                pointRadius: this._pointR,
-                lineWeight: this._lineWeight
-            })
-            graph.mathPointsOneGraph()
+              if (graph.minX < minX || typeof minX === 'undefined') {
+                  minX = graph.minX
+              }
+              if (graph.minY < minY || typeof minY === 'undefined') {
+                  minY = graph.minY
+              }
+              if (graph.maxX > maxX || typeof maxX === 'undefined') {
+                  maxX = graph.maxX
+              }
+              if (graph.maxY > maxY || typeof maxY === 'undefined') {
+                  maxY = graph.maxY
+              }
 
-            if (graph.minX < minX || typeof minX === 'undefined') { minX = graph.minX }
-            if (graph.minY < minY || typeof minY === 'undefined') { minY = graph.minY }
-            if (graph.maxX > maxX || typeof maxX === 'undefined') { maxX = graph.maxX }
-            if (graph.maxY > maxY || typeof maxY === 'undefined') { maxY = graph.maxY }
-
-            this.graphs.push( {graph} )
+              this.graphs.push({graph})
+          }
         })
 
         this._anglesCoords = { minX, maxX, minY, maxY }
@@ -321,5 +337,9 @@ export class Chart{
 
     _chartColor(index) {
         return COLORS[index % COLORS.length]
+    }
+
+    destroy(){
+        this._container.remove()
     }
 }

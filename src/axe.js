@@ -13,7 +13,7 @@ export class Axe{
                 this._coords[1][1]]
             : [ this._coords[0][0],
                 Math.round((this._coords[1][0] - this._coords[0][0])/2) + this._coords[0][0],
-                this._coords[0][1]]
+                this._coords[1][0]]
     }
 
     drawAxe(){
